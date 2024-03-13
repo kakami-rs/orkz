@@ -6,5 +6,5 @@
 /// println!("{}", who());
 /// ```
 pub fn who() -> String {
-    "orkz".to_string()
+    "orkz-0.1.1".to_string()
 }
