@@ -3,8 +3,10 @@
 /// # Examples
 ///
 /// ```
+/// use orkz::who;
+///
 /// println!("{}", who());
 /// ```
 pub fn who() -> String {
-    "orkz-0.1.1".to_string()
+    "orkz-0.1.2".to_string()
 }
