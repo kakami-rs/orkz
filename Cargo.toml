@@ -8,3 +8,7 @@ description = "who I am"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+dirs-next = "2.0.0"
+futures-util = "0.3.30"
+tokio = { version = "1.38.0", features = ["full"] }
+tokio-util = { version = "0.7.11", features = ["codec"] }
