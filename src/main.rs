@@ -1,64 +1,100 @@
-use tokio::io::AsyncSeekExt;
-use tokio_util::codec::{BytesCodec, FramedRead};
-use futures_util::{TryStreamExt, StreamExt};
+#![allow(dead_code)]
+
+use clap::{Parser, Subcommand};
+
+mod cs;
+
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    CS(cs::CSArgs),
+}
 
 #[tokio::main]
 async fn main() {
-    let mut path = dirs_next::home_dir().unwrap();
-    path.push("Library/Logs/Rcd".to_string());
-    let mut entries = tokio::fs::read_dir(path).await.unwrap();
-    let mut path1: Option<std::path::PathBuf> = None;
-    let mut path1_size: u64 = 0;
-    let mut path2: Option<std::path::PathBuf> = None;
-    let mut sec1: std::time::SystemTime = std::time::SystemTime::UNIX_EPOCH;
-    let mut sec2: std::time::SystemTime = std::time::SystemTime::UNIX_EPOCH;
-    while let Ok(Some(entry)) = entries.next_entry().await {
-        println!("{:?}", entry.path());
-        // entry最后修改时期
-        let metadata = tokio::fs::metadata(entry.path()).await.unwrap();
-        let sec = metadata.modified().unwrap_or(std::time::SystemTime::UNIX_EPOCH);
-        if path1.is_some() {
-            if sec > sec1 {
-                sec2 = sec1;
-                path2 = path1;
-                sec1 = sec;
-                path1 = Some(entry.path());
-                path1_size = metadata.len();
-            } else if sec > sec2 {
-                sec2 = sec;
-                path2 = Some(entry.path());
-            }
-        } else {
-            sec1 = sec;
-            path1 = Some(entry.path());
-            path1_size = metadata.len();
-        }
-    }
-    println!("{:?} - {}", path1, path1_size);
-    println!("{:?}", path2);
-    let path1 = {
-        if let Some(path) = path1 {
-            path
-        } else {
-            return;
-        }
-    };
+    init_fixed_window_roller_log();
 
-    let mut total_size: usize = 0;
-    if path1_size > 1024 * 1024 {
-        if let Ok(file) = tokio::fs::File::open(path1).await {
-            let mut reader = tokio::io::BufReader::new(file);
-            reader.seek(tokio::io::SeekFrom::End(-10240 * 1024)).await.unwrap();
-            let mut stream = FramedRead::new(reader, BytesCodec::new())
-                .map_ok(|bytes| bytes.freeze());
-            while let Some(item) = stream.next().await {
-                if let Ok(item) = item {
-                    println!("{}", item.len());
-                    total_size += item.len();
-                }
-            }
+    let args = Cli::parse();
+    match args.command {
+        Commands::CS(args) => {
+            cs::handle_cs(&args).await;
         }
     }
-    println!("total_size: {}", total_size);
 }
 
+fn init_stdout_log() {
+    use log4rs::{
+        config::{Appender, Root, Config},
+        encode::pattern::PatternEncoder,
+    };
+    use log4rs::append::console::ConsoleAppender;
+    use log4rs::config::Logger;
+    use log::LevelFilter;
+
+    let pattern = "{d(%Y-%m-%d %H:%M:%S)}\t{l}\t{M}:{L}\t{m}{n}";
+    let stdout = ConsoleAppender::builder()
+        .encoder(Box::new(PatternEncoder::new(pattern))).build();
+
+    let root = Root::builder()
+        .appender("stdout")
+        .build(LevelFilter::Debug);
+
+    let config = Config::builder()
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .logger(Logger::builder().build("root", LevelFilter::Debug))
+        .build(root)
+        .unwrap();
+
+    let _handle = log4rs::init_config(config).unwrap();
+}
+
+fn init_fixed_window_roller_log() {
+    use log4rs::{
+        config::{Appender, Root, Config},
+        encode::pattern::PatternEncoder,
+    };
+    use log4rs::append::console::ConsoleAppender;
+    use log4rs::config::Logger;
+    use log4rs::append::rolling_file::policy::compound::CompoundPolicy;
+    use log4rs::append::rolling_file::policy::compound::roll::fixed_window::FixedWindowRoller;
+    use log4rs::append::rolling_file::policy::compound::trigger::size::SizeTrigger;
+    use log4rs::append::rolling_file::RollingFileAppender;
+    use log::LevelFilter;
+
+    let path = "/Users/iuz/Downloads/temp/orkz";
+    let pattern = "{m}{n}";
+    let stdout = ConsoleAppender::builder()
+        .encoder(Box::new(PatternEncoder::new(pattern))).build();
+
+    let log_path = format!("{path}/orkz.log");
+    let roll_path = format!("{}.{{}}", log_path);
+
+    let roller = FixedWindowRoller::builder()
+        .build(&roll_path, 5).unwrap();
+    let trigger = SizeTrigger::new(1024 * 1024 * 100);
+    let policy = CompoundPolicy::new(Box::new(trigger),
+        Box::new(roller));
+    let file = RollingFileAppender::builder()
+        .encoder(Box::new(PatternEncoder::new(pattern)))
+        .build(log_path, Box::new(policy)).unwrap();
+
+    let root = Root::builder()
+        .appender("stdout")
+        .appender("file")
+        .build(LevelFilter::Debug);
+
+    let config = Config::builder()
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .appender(Appender::builder().build("file", Box::new(file)))
+        .logger(Logger::builder().build("root", LevelFilter::Debug))
+        .build(root)
+        .unwrap();
+
+    let _handle = log4rs::init_config(config).unwrap();
+}

@@ -1,0 +1,24 @@
+syntax = "proto3";
+package message;
+
+message Tick {
+  enum Role {
+    UNKNOWN = 0;
+    CLIENT = 1;
+    SERVER = 2;
+    PEER = 3;
+  }
+  string local_addr = 1;
+  string remote_addr = 2;
+  Role role = 3;
+  string proto = 10;
+  string cc = 11;
+  int64 rtt = 20;
+  int64 input_bw = 30;
+  float input_rate = 31;
+  float input_loss = 32;
+  int64 output_bw = 40;
+  float output_rate = 41;
+  float output_loss = 42;
+  int64 timestamp = 100;
+}
