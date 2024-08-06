@@ -1,7 +1,7 @@
 syntax = "proto3";
 package message;
 
-message Tick {
+message Line {
   enum Role {
     UNKNOWN = 0;
     CLIENT = 1;
@@ -13,6 +13,7 @@ message Tick {
   Role role = 3;
   string proto = 10;
   string cc = 11;
+  int32 priority = 12;
   int64 rtt = 20;
   int64 input_bw = 30;
   float input_rate = 31;

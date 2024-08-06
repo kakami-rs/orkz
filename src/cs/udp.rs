@@ -17,7 +17,7 @@ pub async fn handle_udp_server(args: &CSArgs) {
         tokio::select! {
             _ = ticker.tick() => {
                 let elasped = tn.elapsed().as_millis();
-                log::info!("speed: {} MBps", size / 1024 / elasped as usize);
+                log::info!("speed: {}", super::to_speed(size, elasped));
                 size = 0;
                 tn = Instant::now();
             }
@@ -46,7 +46,7 @@ pub async fn handle_udp_client(args: &CSArgs) {
                 count += 1;
                 if count % 3 == 0 {
                     let elasped = tn.elapsed().as_millis();
-                    log::info!("speed: {} MBps", size / 1024 / elasped as usize);
+                    log::info!("speed: {}", super::to_speed(size, elasped));
                     size = 0;
                     tn = Instant::now();
                 }

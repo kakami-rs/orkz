@@ -15,6 +15,8 @@ pub struct CSArgs {
     protocol: String,
     #[arg(long, default_value = "bbr")]
     cc: String,
+    #[arg(long, short = 'p', default_value = "2")]
+    priority: usize,
 }
 
 pub async fn handle_cs(args: &CSArgs) {
@@ -39,3 +41,16 @@ pub async fn handle_cs(args: &CSArgs) {
     }
 }
 
+pub fn to_speed(size: usize, elasped: u128) -> String {
+    if elasped == 0 {
+        return "0 MB/s".to_string();
+    }
+    let speed = size as f64 * 1000.0 / elasped as f64;
+    if speed < 1024.0 {
+        format!("{:.2} B/s", speed)
+    } else if speed < 1024.0 * 1024.0 {
+        format!("{:.2} KB/s", speed / 1024.0)
+    } else {
+        format!("{:.2} MB/s", speed / 1024.0 / 1024.0)
+    }
+}
