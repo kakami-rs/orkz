@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use std::env;
 use clap::{Parser, Subcommand};
 
 mod cs;
@@ -7,8 +8,16 @@ mod cs;
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
+    #[command(flatten)]
+    options: Options,
     #[command(subcommand)]
     command: Commands,
+}
+
+#[derive(Parser, Debug)]
+struct Options {
+    #[arg(long, default_value=".")]
+    log_path: String,
 }
 
 #[derive(Subcommand)]
@@ -18,9 +27,8 @@ enum Commands {
 
 #[tokio::main]
 async fn main() {
-    init_fixed_window_roller_log();
-
     let args = Cli::parse();
+    init_fixed_window_roller_log(args.options.log_path.as_str());
     match args.command {
         Commands::CS(args) => {
             cs::handle_cs(&args).await;
@@ -54,7 +62,7 @@ fn init_stdout_log() {
     let _handle = log4rs::init_config(config).unwrap();
 }
 
-fn init_fixed_window_roller_log() {
+fn init_fixed_window_roller_log(log_dir: &str) {
     use log4rs::{
         config::{Appender, Root, Config},
         encode::pattern::PatternEncoder,
@@ -67,7 +75,12 @@ fn init_fixed_window_roller_log() {
     use log4rs::append::rolling_file::RollingFileAppender;
     use log::LevelFilter;
 
-    let path = "/Users/iuz/Downloads/temp/orkz";
+    let path = if log_dir.is_empty() || log_dir == "." {
+        get_log_path().unwrap()
+    } else {
+        log_dir.to_string()
+    };
+
     let pattern = "{m}{n}";
     let stdout = ConsoleAppender::builder()
         .encoder(Box::new(PatternEncoder::new(pattern))).build();
@@ -97,4 +110,28 @@ fn init_fixed_window_roller_log() {
         .unwrap();
 
     let _handle = log4rs::init_config(config).unwrap();
+}
+
+fn get_log_path() -> Option<String> {
+    let mut rpath = env::current_exe().ok()?;
+    rpath.push("../logs");
+    let opath = rpath.to_str()?;
+    Some(clean_path(opath))
+}
+
+fn clean_path(path: &str) -> String {
+    let result = path.split('/').fold(Vec::new(), |mut stack, c| {
+        if c == ".." {
+            stack.pop();
+        } else if !c.is_empty() && c != "." {
+            stack.push(c);
+        }
+        stack
+    }).join("/");
+
+    if path.starts_with("/") {
+        format!("/{}", result)
+    } else {
+        result
+    }
 }
