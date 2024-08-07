@@ -19,14 +19,14 @@ pub struct CSArgs {
     priority: usize,
 }
 
-pub async fn handle_cs(args: &CSArgs, offset: i64) {
+pub async fn handle_cs(args: &CSArgs, offset: i64, tag: &str) {
     log::info!("{:?}", args);
     match args.protocol.as_str() {
         "quic" => {
             if args.server {
                 quic::handle_quic_server(args).await;
             } else {
-                quic::handle_quic_client(args, offset).await;
+                quic::handle_quic_client(args, offset, tag).await;
             }
         }
         "udp" => {

@@ -19,8 +19,8 @@ struct Cli {
 struct Options {
     #[arg(long, default_value=".")]
     log_path: String,
-    #[arg(long, default_value = "false")]
-    reset: bool,
+    #[arg(long)]
+    tag: String,
 }
 
 #[derive(Subcommand)]
@@ -41,27 +41,20 @@ async fn main() {
     };
     let mut config = Ini::new();
     let _ = config.load(&path);
-    let ts = if args.options.reset {
-        let ts = chrono::Utc::now().timestamp_millis();
-        config.set("DEFAULT", "timestamp", Some(format!("{}",ts)));
-        ts
-    } else {
-        let ts = match config.getuint("DEFAULT", "timestamp") {
-            Ok(Some(ts)) => ts as i64,
-            _ => {
-                let ts = chrono::Utc::now().timestamp_millis();
-                config.set("DEFAULT", "timestamp", Some(format!("{}",ts)));
-                ts
-            }
-        };
-        ts
+    let ts = match config.getuint("TagList", args.options.tag.as_str()) {
+        Ok(Some(ts)) => ts as i64,
+        _ => {
+            let ts = chrono::Utc::now().timestamp_millis();
+            config.set("TagList", args.options.tag.as_str(), Some(format!("{}",ts)));
+            ts
+        }
     };
     config.write(&path).unwrap();
     let offset = chrono::Utc::now().timestamp_millis() - ts;
 
     match args.command {
-        Commands::CS(args) => {
-            cs::handle_cs(&args, offset).await;
+        Commands::CS(cs_args) => {
+            cs::handle_cs(&cs_args, offset, &args.options.tag).await;
         }
     }
 }

@@ -5,6 +5,7 @@ message Line {
   string local_addr = 1;
   string remote_addr = 2;
   string role = 3;
+  string tag = 4;
   string proto = 10;
   string cc = 11;
   int32 priority = 12;

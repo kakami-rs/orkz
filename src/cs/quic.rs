@@ -46,6 +46,7 @@ pub async fn handle_quic_server(args: &CSArgs) {
                         local_addr: args.local_addr.clone(),
                         remote_addr: args.remote_addr.clone(),
                         role: "server".to_string(),
+                        tag: "server".to_string(),
                         proto: args.protocol.clone(),
                         cc: args.cc.clone(),
                         priority: args.priority as i32,
@@ -77,7 +78,7 @@ pub async fn handle_quic_server(args: &CSArgs) {
     }
 }
 
-pub async fn handle_quic_client(args: &CSArgs, offset: i64) {
+pub async fn handle_quic_client(args: &CSArgs, offset: i64, tag: &str) {
     let local_addr: SocketAddr = args.local_addr.parse().unwrap();
     let remote_addr: SocketAddr = args.remote_addr.parse().unwrap();
     let socket = UdpSocket::bind(local_addr).await.unwrap();
@@ -122,6 +123,7 @@ pub async fn handle_quic_client(args: &CSArgs, offset: i64) {
                         local_addr: args.local_addr.clone(),
                         remote_addr: args.remote_addr.clone(),
                         role: "client".to_string(),
+                        tag: tag.to_string(),
                         proto: args.protocol.clone(),
                         cc: args.cc.clone(),
                         priority: args.priority as i32,
