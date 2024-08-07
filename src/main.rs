@@ -2,6 +2,7 @@
 
 use std::env;
 use clap::{Parser, Subcommand};
+use configparser::ini::Ini;
 
 mod cs;
 
@@ -18,6 +19,8 @@ struct Cli {
 struct Options {
     #[arg(long, default_value=".")]
     log_path: String,
+    #[arg(long, default_value = "false")]
+    reset: bool,
 }
 
 #[derive(Subcommand)]
@@ -29,9 +32,36 @@ enum Commands {
 async fn main() {
     let args = Cli::parse();
     init_fixed_window_roller_log(args.options.log_path.as_str());
+    let path = match current_path("orkz.ini") {
+        Some(path) => path,
+        None => {
+            log::error!("orkz.ini not found");
+            return;
+        }
+    };
+    let mut config = Ini::new();
+    let _ = config.load(&path);
+    let ts = if args.options.reset {
+        let ts = chrono::Utc::now().timestamp_millis();
+        config.set("DEFAULT", "timestamp", Some(format!("{}",ts)));
+        ts
+    } else {
+        let ts = match config.getuint("DEFAULT", "timestamp") {
+            Ok(Some(ts)) => ts as i64,
+            _ => {
+                let ts = chrono::Utc::now().timestamp_millis();
+                config.set("DEFAULT", "timestamp", Some(format!("{}",ts)));
+                ts
+            }
+        };
+        ts
+    };
+    config.write(&path).unwrap();
+    let offset = chrono::Utc::now().timestamp_millis() - ts;
+
     match args.command {
         Commands::CS(args) => {
-            cs::handle_cs(&args).await;
+            cs::handle_cs(&args, offset).await;
         }
     }
 }
@@ -115,6 +145,14 @@ fn init_fixed_window_roller_log(log_dir: &str) {
 fn get_log_path() -> Option<String> {
     let mut rpath = env::current_exe().ok()?;
     rpath.push("../logs");
+    let opath = rpath.to_str()?;
+    Some(clean_path(opath))
+}
+
+fn current_path(mark: &str) -> Option<String> {
+    let mut rpath = env::current_exe().ok()?;
+    rpath.push("../");
+    rpath.push(mark);
     let opath = rpath.to_str()?;
     Some(clean_path(opath))
 }

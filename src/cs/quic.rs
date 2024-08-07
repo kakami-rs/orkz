@@ -7,8 +7,10 @@ use bytes::Bytes;
 use super::CSArgs;
 
 use protos::prom_protos::message as pm;
+use protos::prom_codegen::message as pc;
 use tokio::net::UdpSocket;
 use tokio::time::Instant;
+use protobuf::Message as _;
 
 pub async fn handle_quic_server(args: &CSArgs) {
     let local_addr: SocketAddr = args.local_addr.parse().unwrap();
@@ -43,7 +45,7 @@ pub async fn handle_quic_server(args: &CSArgs) {
                     let line = pm::Line {
                         local_addr: args.local_addr.clone(),
                         remote_addr: args.remote_addr.clone(),
-                        role: pm::line::Role::Server as i32,
+                        role: "server".to_string(),
                         proto: args.protocol.clone(),
                         cc: args.cc.clone(),
                         priority: args.priority as i32,
@@ -71,7 +73,7 @@ pub async fn handle_quic_server(args: &CSArgs) {
     }
 }
 
-pub async fn handle_quic_client(args: &CSArgs) {
+pub async fn handle_quic_client(args: &CSArgs, offset: i64) {
     let local_addr: SocketAddr = args.local_addr.parse().unwrap();
     let remote_addr: SocketAddr = args.remote_addr.parse().unwrap();
     let socket = UdpSocket::bind(local_addr).await.unwrap();
@@ -89,12 +91,18 @@ pub async fn handle_quic_client(args: &CSArgs) {
     let stream = endpoint.open().await.unwrap();
 
     let mut ticker = tokio::time::interval(tokio::time::Duration::from_secs(3));
+    let mut ticker1 = tokio::time::interval(tokio::time::Duration::from_secs(1));
     let buffer = vec!['n' as u8; 8192];
     let msg = Bytes::from(buffer);
     let mut size = 0;
     let mut send_bytes: u64 = 0;
     let mut tn = Instant::now();
+    let mut rtt = 0i64;
+    let mut count = 0;
     loop {
+        if count > 100 {
+            break;
+        }
         tokio::select! {
             biased;
             _ = ticker.tick() => {
@@ -103,29 +111,55 @@ pub async fn handle_quic_client(args: &CSArgs) {
                     if elasped == 0 {
                         continue;
                     }
+                    count += 1;
                     let diff = stats.sent_bytes - send_bytes;
                     send_bytes = stats.sent_bytes;
                     let line = pm::Line {
                         local_addr: args.local_addr.clone(),
                         remote_addr: args.remote_addr.clone(),
-                        role: pm::line::Role::Server as i32,
+                        role: "client".to_string(),
                         proto: args.protocol.clone(),
                         cc: args.cc.clone(),
                         priority: args.priority as i32,
-                        rtt: 0,
+                        rtt,
                         output_bw: (diff*1000/elasped as u64) as i64,
                         output_rate: diff as f32 / size as f32,
                         output_loss: 0.0,
                         input_bw: 0,
                         input_rate: 0.0,
                         input_loss: 0.0,
-                        timestamp: chrono::Utc::now().timestamp_millis(),
+                        timestamp: chrono::Utc::now().timestamp_millis() - offset,
                     };
                     let line = serde_json::to_string(&line).unwrap();
-                    log::info!("{line}");
+                    if count > 3 {
+                        log::info!("{line}");
+                    }
                 }
                 size = 0;
                 tn = Instant::now();
+            }
+            _ = ticker1.tick() => {
+                let mut msg = pc::Message::new();
+                let mut pp = pc::PingPong::new();
+                pp.timestamp = chrono::Utc::now().timestamp_millis();
+                msg.set_ping_pong(pp);
+                let mm = bytes::Bytes::from(msg.write_to_bytes().unwrap());
+                let _ = stream.send_bytes(mm).await;
+            }
+            result = stream.next() => {
+                if let Ok(ref bytes) = result {
+                    if bytes.len() < 1024 {
+                        if let Ok(msg_in) = pc::Message::parse_from_bytes(bytes) {
+                            match msg_in.union {
+                                Some(pc::message::Union::PingPong(pp)) => {
+                                    let ts = chrono::Utc::now().timestamp_millis();
+                                    rtt = ts - pp.timestamp;
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
             }
             ret = stream.send_bytes(msg.clone()) => {
                 if let Ok(_) = ret {

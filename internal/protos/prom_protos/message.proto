@@ -2,15 +2,9 @@ syntax = "proto3";
 package message;
 
 message Line {
-  enum Role {
-    UNKNOWN = 0;
-    CLIENT = 1;
-    SERVER = 2;
-    PEER = 3;
-  }
   string local_addr = 1;
   string remote_addr = 2;
-  Role role = 3;
+  string role = 3;
   string proto = 10;
   string cc = 11;
   int32 priority = 12;
@@ -22,4 +16,14 @@ message Line {
   float output_rate = 41;
   float output_loss = 42;
   int64 timestamp = 100;
+}
+
+message Message {
+  oneof union {
+    PingPong ping_pong = 1;
+  }
+}
+
+message PingPong {
+  int64 timestamp = 1;
 }
