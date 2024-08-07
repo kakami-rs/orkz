@@ -67,6 +67,10 @@ pub async fn handle_quic_server(args: &CSArgs) {
             result = stream.next() => {
                 if let Ok(_pkt) = result {
                     size += _pkt.len();
+                    if _pkt.len() < 1024 {
+                        let msg = bytes::Bytes::from(_pkt);
+                        let _ = stream.send_bytes(msg).await;
+                    }
                 }
             }
         }
